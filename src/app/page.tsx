@@ -4,9 +4,10 @@ import React, { useState } from "react";
 import Header from "@/components/Header";
 import ChatPanel from "@/components/ChatPanel";
 import CommerceCanvas from "@/components/CommerceCanvas";
+import { CommercialQuote, TransactionRecord, Milestone } from "@/types";
 
 export default function Home() {
-  const [currentQuote, setCurrentQuote] = useState<any>({
+  const [currentQuote, setCurrentQuote] = useState<CommercialQuote>({
     title: "Autonomous AI Commerce & Infrastructure Sprint",
     description: "Itemized scope and commercial deliverables synthesized by PayAgent.",
     totalAmount: 1400,
@@ -32,24 +33,24 @@ export default function Home() {
     terms: "Payments processed via PayPal Sandbox with dispute mediation by PayAgent.",
   });
 
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
 
-  const handlePaymentComplete = (tx: any) => {
+  const handlePaymentComplete = (tx: TransactionRecord) => {
     setTransactions((prev) => [tx, ...prev]);
 
     // Automatically update quote milestone status
     if (currentQuote && currentQuote.milestones) {
-      setCurrentQuote((prev: any) => ({
+      setCurrentQuote((prev: CommercialQuote) => ({
         ...prev,
-        milestones: prev.milestones.map((ms: any, idx: number) =>
-          idx === 0 ? { ...ms, status: "released" } : ms
+        milestones: prev.milestones.map((ms: Milestone, idx: number) =>
+          idx === 0 ? { ...ms, status: "released" as const } : ms
         ),
       }));
     }
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#07090E]">
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-white dark:bg-[#07090E] transition-colors duration-200">
       <Header />
 
       <main className="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
@@ -63,7 +64,7 @@ export default function Home() {
         </section>
 
         {/* Right: Dynamic Commerce Canvas & PayPal Terminal */}
-        <section className="lg:col-span-7 h-[50vh] lg:h-full flex flex-col overflow-hidden border-t lg:border-t-0 border-[#1E293B]">
+        <section className="lg:col-span-7 h-[50vh] lg:h-full flex flex-col overflow-hidden border-t lg:border-t-0 border-slate-200 dark:border-[#1E293B]">
           <CommerceCanvas
             quote={currentQuote}
             transactions={transactions}

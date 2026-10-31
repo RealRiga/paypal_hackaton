@@ -8,28 +8,15 @@ import {
   ChevronDown,
   ChevronUp,
   CreditCard,
-  CheckCircle,
-  Clock,
   Sparkles,
-  ArrowRight,
-  ShieldCheck,
-  FileText,
 } from "lucide-react";
 import PayPalButtonWrapper from "./PayPalButtonWrapper";
-
-export interface Message {
-  id: string;
-  sender: "user" | "agent";
-  text: string;
-  thoughtProcess?: string[];
-  action?: any;
-  timestamp: string;
-}
+import { CommercialQuote, TransactionRecord, ChatMessage } from "@/types";
 
 interface ChatPanelProps {
-  currentQuote: any;
-  onUpdateQuote: (quote: any) => void;
-  onPaymentComplete: (transaction: any) => void;
+  currentQuote: CommercialQuote;
+  onUpdateQuote: (quote: CommercialQuote) => void;
+  onPaymentComplete: (transaction: TransactionRecord) => void;
 }
 
 const PRESET_PROMPTS = [
@@ -38,12 +25,22 @@ const PRESET_PROMPTS = [
   "⚡ Settle instant payment for Cloud Maintenance retainer ($350)",
 ];
 
+let messageCounter = 0;
+function createMessageId(prefix: string): string {
+  messageCounter += 1;
+  return `${prefix}-${messageCounter}`;
+}
+
+function getFormattedTime(): string {
+  return new Intl.DateTimeFormat("en-US", { hour: "2-digit", minute: "2-digit" }).format(new Date());
+}
+
 export default function ChatPanel({
   currentQuote,
   onUpdateQuote,
   onPaymentComplete,
 }: ChatPanelProps) {
-  const [messages, setMessages] = useState<Message[]>([
+  const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "msg-1",
       sender: "agent",
@@ -78,11 +75,11 @@ export default function ChatPanel({
     const textToSend = messageText || input;
     if (!textToSend.trim() || loading) return;
 
-    const userMessage: Message = {
-      id: `user-${Date.now()}`,
+    const userMessage: ChatMessage = {
+      id: createMessageId("user"),
       sender: "user",
       text: textToSend,
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      timestamp: getFormattedTime(),
     };
 
     setMessages((prev) => [...prev, userMessage]);
@@ -108,22 +105,23 @@ export default function ChatPanel({
         onUpdateQuote(data.action.quote);
       }
 
-      const agentMessage: Message = {
-        id: `agent-${Date.now()}`,
+      const agentMessage: ChatMessage = {
+        id: createMessageId("agent"),
         sender: "agent",
         text: data.reply,
         thoughtProcess: data.thoughtProcess,
         action: data.action,
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        timestamp: getFormattedTime(),
       };
 
       setMessages((prev) => [...prev, agentMessage]);
-    } catch (err: any) {
-      const errorMessage: Message = {
-        id: `agent-${Date.now()}`,
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : "An unexpected error occurred";
+      const errorMessage: ChatMessage = {
+        id: createMessageId("agent-error"),
         sender: "agent",
-        text: `Error processing request: ${err.message}. Please try again.`,
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        text: `Error processing request: ${errorMsg}. Please try again.`,
+        timestamp: getFormattedTime(),
       };
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
@@ -132,22 +130,22 @@ export default function ChatPanel({
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#0B101D] border-r border-[#1E293B]">
+    <div className="flex flex-col h-full bg-white dark:bg-[#0B101D] border-r border-slate-200 dark:border-[#1E293B] transition-colors">
       {/* Chat Sub-header */}
-      <div className="px-5 py-3 border-b border-[#1E293B] bg-[#0E1526]/60 flex items-center justify-between">
+      <div className="px-5 py-3 border-b border-slate-200 dark:border-[#1E293B] bg-slate-50/80 dark:bg-[#0E1526]/60 flex items-center justify-between">
         <div className="flex items-center space-x-2">
-          <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></div>
-          <span className="text-xs font-semibold text-slate-200 uppercase tracking-wider">
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div>
+          <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
             Agentic Dialogue
           </span>
         </div>
-        <span className="text-[11px] text-slate-400">
+        <span className="text-[11px] text-slate-500 dark:text-slate-400">
           Powered by PayPal REST + AI Reasoning
         </span>
       </div>
 
       {/* Messages Scroll Area */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 bg-slate-50/40 dark:bg-transparent">
         {messages.map((msg) => {
           const isUser = msg.sender === "user";
           return (
@@ -162,10 +160,10 @@ export default function ChatPanel({
               >
                 {/* Avatar */}
                 <div
-                  className={`w-7 h-7 rounded-lg shrink-0 flex items-center justify-center ${
+                  className={`w-7 h-7 rounded-lg shrink-0 flex items-center justify-center transition-colors ${
                     isUser
-                      ? "bg-[#38BDF8]/20 text-[#38BDF8] border border-[#38BDF8]/30"
-                      : "bg-[#0070BA]/20 text-[#38BDF8] border border-[#0070BA]/40"
+                      ? "bg-sky-100 text-sky-600 border border-sky-200 dark:bg-[#38BDF8]/20 dark:text-[#38BDF8] dark:border-[#38BDF8]/30"
+                      : "bg-[#0070BA]/10 text-[#0070BA] border border-[#0070BA]/20 dark:bg-[#0070BA]/20 dark:text-[#38BDF8] dark:border-[#0070BA]/40"
                   }`}
                 >
                   {isUser ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
@@ -174,16 +172,16 @@ export default function ChatPanel({
                 {/* Message Bubble */}
                 <div className="space-y-2">
                   <div
-                    className={`p-3.5 rounded-2xl text-xs sm:text-sm leading-relaxed ${
+                    className={`p-3.5 rounded-2xl text-xs sm:text-sm leading-relaxed transition-colors ${
                       isUser
-                        ? "bg-[#0070BA] text-white rounded-tr-xs"
-                        : "bg-[#111A2E] text-slate-200 border border-[#1E293B] rounded-tl-xs shadow-md"
+                        ? "bg-[#0070BA] text-white rounded-tr-xs shadow-sm"
+                        : "bg-white text-slate-800 border border-slate-200/90 rounded-tl-xs shadow-xs dark:bg-[#111A2E] dark:text-slate-200 dark:border-[#1E293B] dark:shadow-md"
                     }`}
                   >
                     <div className="whitespace-pre-wrap">{msg.text}</div>
                     <div
                       className={`text-[10px] mt-1.5 flex justify-end ${
-                        isUser ? "text-blue-100" : "text-slate-500"
+                        isUser ? "text-blue-100" : "text-slate-400 dark:text-slate-500"
                       }`}
                     >
                       {msg.timestamp}
@@ -192,13 +190,13 @@ export default function ChatPanel({
 
                   {/* Agent Thought Process Accordion */}
                   {msg.thoughtProcess && msg.thoughtProcess.length > 0 && (
-                    <div className="rounded-xl bg-[#07090E]/80 border border-[#1E293B] overflow-hidden text-xs">
+                    <div className="rounded-xl bg-white dark:bg-[#07090E]/80 border border-slate-200 dark:border-[#1E293B] overflow-hidden text-xs shadow-xs transition-colors">
                       <button
                         onClick={() => toggleThoughts(msg.id)}
-                        className="w-full px-3 py-2 text-[11px] font-mono text-[#38BDF8] hover:bg-[#0F172A] flex items-center justify-between transition-colors cursor-pointer"
+                        className="w-full px-3 py-2 text-[11px] font-mono text-[#0070BA] dark:text-[#38BDF8] hover:bg-slate-50 dark:hover:bg-[#0F172A] flex items-center justify-between transition-colors cursor-pointer"
                       >
                         <span className="flex items-center space-x-1.5">
-                          <Sparkles className="w-3.5 h-3.5 text-[#38BDF8]" />
+                          <Sparkles className="w-3.5 h-3.5 text-[#0070BA] dark:text-[#38BDF8]" />
                           <span>Agent Thought Process ({msg.thoughtProcess.length} steps)</span>
                         </span>
                         {expandedThoughts[msg.id] ? (
@@ -209,13 +207,13 @@ export default function ChatPanel({
                       </button>
 
                       {expandedThoughts[msg.id] && (
-                        <div className="px-3 pb-3 pt-1 border-t border-[#1E293B]/60 space-y-1.5">
+                        <div className="px-3 pb-3 pt-1 border-t border-slate-100 dark:border-[#1E293B]/60 space-y-1.5">
                           {msg.thoughtProcess.map((step, idx) => (
                             <div
                               key={idx}
-                              className="text-[11px] text-slate-400 font-mono flex items-start space-x-2"
+                              className="text-[11px] text-slate-600 dark:text-slate-400 font-mono flex items-start space-x-2"
                             >
-                              <span className="text-[#38BDF8] shrink-0 font-bold">›</span>
+                              <span className="text-[#0070BA] dark:text-[#38BDF8] shrink-0 font-bold">›</span>
                               <span>{step}</span>
                             </div>
                           ))}
@@ -226,17 +224,17 @@ export default function ChatPanel({
 
                   {/* Inline Action Widget (e.g. PayPal Checkout) */}
                   {msg.action && msg.action.type === "CHECKOUT_READY" && (
-                    <div className="p-4 rounded-xl bg-gradient-to-b from-[#0F172A] to-[#0B101D] border border-[#0070BA]/40 shadow-xl space-y-3">
+                    <div className="p-4 rounded-xl bg-linear-to-b from-white to-slate-50 dark:from-[#0F172A] dark:to-[#0B101D] border border-[#0070BA]/30 dark:border-[#0070BA]/40 shadow-lg space-y-3 transition-colors">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-white flex items-center space-x-1.5">
-                          <CreditCard className="w-4 h-4 text-[#38BDF8]" />
+                        <span className="text-xs font-semibold text-slate-900 dark:text-white flex items-center space-x-1.5">
+                          <CreditCard className="w-4 h-4 text-[#0070BA] dark:text-[#38BDF8]" />
                           <span>PayPal Instant Checkout</span>
                         </span>
-                        <span className="text-xs font-bold text-emerald-400 font-mono">
+                        <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 font-mono">
                           ${(msg.action.quote?.totalAmount || 450).toFixed(2)} USD
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-400">
+                      <p className="text-[11px] text-slate-600 dark:text-slate-400">
                         {msg.action.quote?.title || "Negotiated Agreement Settlement"}
                       </p>
                       <PayPalButtonWrapper
@@ -255,9 +253,9 @@ export default function ChatPanel({
         })}
 
         {loading && (
-          <div className="flex items-center space-x-2 text-slate-400 text-xs pl-2">
-            <div className="w-6 h-6 rounded-lg bg-[#0070BA]/20 border border-[#0070BA]/40 flex items-center justify-center">
-              <Bot className="w-3.5 h-3.5 text-[#38BDF8] animate-bounce" />
+          <div className="flex items-center space-x-2 text-slate-500 dark:text-slate-400 text-xs pl-2">
+            <div className="w-6 h-6 rounded-lg bg-[#0070BA]/10 border border-[#0070BA]/20 dark:bg-[#0070BA]/20 dark:border-[#0070BA]/40 flex items-center justify-center">
+              <Bot className="w-3.5 h-3.5 text-[#0070BA] dark:text-[#38BDF8] animate-bounce" />
             </div>
             <span className="animate-pulse">PayAgent is analyzing commercial terms & PayPal routes...</span>
           </div>
@@ -267,13 +265,13 @@ export default function ChatPanel({
       </div>
 
       {/* Suggested Quick Prompts */}
-      <div className="px-4 py-2 border-t border-[#1E293B]/60 bg-[#0E1526]/40 flex flex-nowrap overflow-x-auto gap-2 text-xs no-scrollbar">
+      <div className="px-4 py-2 border-t border-slate-200 dark:border-[#1E293B]/60 bg-slate-50/80 dark:bg-[#0E1526]/40 flex flex-nowrap overflow-x-auto gap-2 text-xs no-scrollbar transition-colors">
         {PRESET_PROMPTS.map((prompt, idx) => (
           <button
             key={idx}
             onClick={() => handleSend(prompt)}
             disabled={loading}
-            className="px-2.5 py-1.5 rounded-lg bg-[#111A2E] hover:bg-[#1A2640] border border-[#1E293B] text-[11px] text-slate-300 whitespace-nowrap hover:text-white transition-all cursor-pointer flex items-center space-x-1 shrink-0"
+            className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-100 border border-slate-200 text-[11px] text-slate-700 whitespace-nowrap hover:text-slate-900 shadow-xs dark:bg-[#111A2E] dark:hover:bg-[#1A2640] dark:border-[#1E293B] dark:text-slate-300 dark:hover:text-white transition-all cursor-pointer flex items-center space-x-1 shrink-0"
           >
             <span>{prompt}</span>
           </button>
@@ -286,7 +284,7 @@ export default function ChatPanel({
           e.preventDefault();
           handleSend();
         }}
-        className="p-3 sm:p-4 border-t border-[#1E293B] bg-[#0B101D] flex items-center space-x-2"
+        className="p-3 sm:p-4 border-t border-slate-200 dark:border-[#1E293B] bg-white dark:bg-[#0B101D] flex items-center space-x-2 transition-colors"
       >
         <input
           type="text"
@@ -294,12 +292,12 @@ export default function ChatPanel({
           onChange={(e) => setInput(e.target.value)}
           placeholder="e.g. Negotiate a $900 website redesign with 30% deposit..."
           disabled={loading}
-          className="flex-1 bg-[#111A2E] border border-[#1E293B] focus:border-[#0070BA] focus:outline-none rounded-xl px-4 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 transition-colors"
+          className="flex-1 bg-slate-50 border border-slate-200 focus:border-[#0070BA] focus:bg-white focus:outline-none rounded-xl px-4 py-2.5 text-xs sm:text-sm text-slate-900 placeholder-slate-400 dark:bg-[#111A2E] dark:border-[#1E293B] dark:focus:border-[#0070BA] dark:focus:bg-[#111A2E] dark:text-white dark:placeholder-slate-500 transition-colors"
         />
         <button
           type="submit"
           disabled={!input.trim() || loading}
-          className="px-4 py-2.5 rounded-xl bg-[#0070BA] hover:bg-[#005EA6] disabled:opacity-50 disabled:hover:bg-[#0070BA] text-white font-medium transition-colors flex items-center justify-center cursor-pointer"
+          className="px-4 py-2.5 rounded-xl bg-[#0070BA] hover:bg-[#005EA6] disabled:opacity-50 disabled:hover:bg-[#0070BA] text-white font-medium transition-colors flex items-center justify-center cursor-pointer shadow-sm"
         >
           <Send className="w-4 h-4" />
         </button>

@@ -81,7 +81,7 @@ export async function createPayPalOrder(params: {
   const currency = params.currency || "USD";
   const amountStr = params.amount.toFixed(2);
 
-  const purchaseUnit: any = {
+  const purchaseUnit: Record<string, unknown> = {
     reference_id: params.referenceId || `PAYAGENT-${Date.now()}`,
     description: params.description || "PayAgent Autonomous Commercial Settlement",
     amount: {
@@ -92,7 +92,7 @@ export async function createPayPalOrder(params: {
 
   if (params.items && params.items.length > 0) {
     purchaseUnit.items = params.items;
-    purchaseUnit.amount.breakdown = {
+    (purchaseUnit.amount as Record<string, unknown>).breakdown = {
       item_total: {
         currency_code: currency,
         value: amountStr,

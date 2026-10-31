@@ -28,10 +28,11 @@ export async function POST(req: NextRequest) {
       links: order.links,
       raw: order,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : "Failed to create PayPal order";
     console.error("API error in /api/paypal/create-order:", error);
     return NextResponse.json(
-      { error: error.message || "Failed to create PayPal order" },
+      { error: errorMsg },
       { status: 500 }
     );
   }

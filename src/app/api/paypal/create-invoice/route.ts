@@ -30,10 +30,11 @@ export async function POST(req: NextRequest) {
       href: invoice.href,
       raw: invoice,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : "Failed to create PayPal invoice";
     console.error("API error in /api/paypal/create-invoice:", error);
     return NextResponse.json(
-      { error: error.message || "Failed to create PayPal invoice" },
+      { error: errorMsg },
       { status: 500 }
     );
   }

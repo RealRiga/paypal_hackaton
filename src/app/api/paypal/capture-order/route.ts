@@ -27,10 +27,11 @@ export async function POST(req: NextRequest) {
       payerName: `${payer?.name?.given_name || ""} ${payer?.name?.surname || ""}`.trim(),
       raw: captureResult,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : "Failed to capture PayPal order";
     console.error("API error in /api/paypal/capture-order:", error);
     return NextResponse.json(
-      { error: error.message || "Failed to capture PayPal order" },
+      { error: errorMsg },
       { status: 500 }
     );
   }
