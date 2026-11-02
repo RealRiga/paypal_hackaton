@@ -15,42 +15,56 @@
 
 ## 📝 Submission Form Fields (Copy & Paste to Devpost)
 
-### Inspiration
-Traditional commercial transactions—from freelance contracts to B2B purchase orders—suffer from extreme friction. Buyers and sellers waste days trading unstructured emails, haggling over deliverables in PDFs, creating manual quotes, and chasing unpaid invoices. We asked ourselves: *What if an autonomous AI agent could sit between both parties, negotiate mutually beneficial scopes and milestone schedules in plain English, and instantly execute verifiable settlements using PayPal?* That inspired **PayAgent**.
+## Inspiration
 
-### What It Does
-PayAgent is an end-to-end Agentic Commerce platform that converts conversational natural language into executed PayPal payments:
-1. **Autonomous Commercial Negotiation:** A client describes what they need and their budget. PayAgent analyzes constraints, generates itemized scopes, calculates dynamic discounts, and breaks projects into risk-mitigating milestone escrows.
-2. **Real-time Dual Canvas:** As the conversation evolves, the right-hand canvas dynamically updates the commercial agreement, line items, and smart escrow milestones.
-3. **Instant PayPal Execution:** PayAgent integrates directly with PayPal REST API v2:
-   - Mounts native PayPal Smart Buttons inside the chat and terminal.
-   - Creates authenticated PayPal orders (`/v2/checkout/orders`) with intent `CAPTURE`.
-   - Captures authorized transactions and issues cryptographically verifiable transaction receipts.
-   - Generates official PayPal Invoices (`/v2/invoicing/invoices`) sent directly to recipient inboxes.
-4. **Agentic Verified Ledger:** An immutable audit log displaying confirmed capture IDs, payer details, and timestamps for total accounting compliance.
+Most commercial deals start with friction. Freelancers and small businesses trade emails, argue over scope in PDFs, hand-write quotes, and then chase invoices for weeks. We asked: **what if an agent could turn a plain-English conversation into a structured deal and settle it on the spot?** PayPal already handles trust and payments for millions of people, so pairing it with a conversational agent felt like a natural fit for agentic commerce.
 
-### How We Built It
-* **Frontend:** Built with Next.js 16 (App Router, Turbopack, React 19) and TypeScript. Styled with a custom dark-mode glassmorphic fintech design inspired by Linear and Stripe.
-* **PayPal Integration:** Utilizes `@paypal/react-paypal-js` on the client and server-side PayPal REST API v2 endpoints on the backend with OAuth2 Client Credentials caching.
-* **Agentic Reasoning Engine:** Implemented an autonomous multi-step reasoning system that extracts financial entities, parses deliverable scopes, constructs milestone release schedules, and triggers PayPal API tools.
+## What it does
 
-### Challenges We Ran Into
-* **Dual-Pane State Synchronization:** Synchronizing rapid conversational state changes with PayPal Order IDs and dynamic line item breakdowns required careful state design to prevent stale purchase units during checkout.
-* **PayPal REST Token Caching:** Optimizing OAuth2 token generation to handle high-frequency requests without incurring redundant round-trip latencies, resolved via an in-memory TTL token cache.
+**PayAgent** is a dual-pane commerce app. The buyer chats on the left, and a live agreement canvas updates on the right.
 
-### Accomplishments That We're Proud Of
-* Achieving real, live PayPal Sandbox order creation and payment capture in under 2 seconds.
-* Crafting a modern, high-polish UI with transparent "Agent Thought Process" accordions showing step-by-step financial reasoning.
-* Creating a truly practical use case for Agentic Commerce that solves real pain points for freelancers, agencies, and online merchants.
+1. **Describe the deal.** For example: *"I need an enterprise AI audit with a 15% discount and a 40% milestone deposit ($950)."*
+2. **The agent structures it.** It extracts the budget and constraints, builds itemized deliverables, applies discounts, and proposes an upfront deposit plus a milestone schedule. An **Agent Thought Process** accordion shows each step of the reasoning.
+3. **Pay with PayPal.** The backend creates a PayPal order (Orders API v2, intent `CAPTURE`) and the PayPal Smart Button completes checkout in the sandbox. PayAgent can also generate PayPal invoices via the Invoicing API v2.
+4. **Verified Ledger.** After a successful capture, the app celebrates with confetti and records the capture ID, payer details, and timestamp.
 
-### What We Learned
-* Deep understanding of the PayPal REST API v2 architecture, particularly how purchase unit breakdowns and milestone intents map into modern agentic workflows.
-* Best practices for designing agentic UIs that give users confidence and control when financial actions are triggered.
+The pricing logic is simple and transparent. For a base price \( P \), discount rate \( d \), and deposit rate \( r \):
 
-### What's Next for PayAgent
-* **Multi-Party Escrow Contracts:** Smart conditional escrow release using automated GitHub PR merges and webhooks.
-* **PayPal Subscriptions & Recurring Agent Retainers:** Autonomous monthly retainer management for ongoing services.
-* **Cross-border Currency Intelligence:** Multi-currency real-time conversion and hedging for international contracts.
+$$
+\text{Total} = P\,(1 - d), \qquad \text{Deposit} = r \cdot P\,(1 - d)
+$$
+
+For example, with \( P = 950 \), \( d = 0.15 \), and \( r = 0.40 \), the total is \$807.50 and the upfront deposit is \$323.00, leaving \$484.50 to be released across milestones.
+
+## How we built it
+
+- **Frontend:** Next.js 16 (App Router, Turbopack), React 19, and TypeScript in strict mode, styled with Tailwind CSS v4 in a dark/light glassmorphic fintech look inspired by Linear and Stripe.
+- **Payments:** `@paypal/react-paypal-js` for the client-side Smart Buttons, with server-side calls to the PayPal REST API v2 for order creation, capture, and invoicing. OAuth2 client-credentials tokens are cached in memory with a TTL.
+- **Agent engine:** a multi-step reasoning pipeline that extracts financial entities, parses scope, builds the milestone schedule, and triggers PayPal tools. It works out of the box with no external key, and Gemini or OpenAI keys can be added as optional extras.
+- **Polish:** `lucide-react` icons and `canvas-confetti` for the payment celebration.
+
+## Challenges we ran into
+
+- **Keeping two panes in sync.** Conversation changes, line items, and PayPal order IDs all had to stay consistent, or a buyer could end up paying for a stale purchase unit. We designed the state so the order is always created from the latest agreed terms.
+- **Token overhead.** Requesting a new PayPal OAuth2 token on every call added needless latency, so we added an in-memory TTL cache.
+- **Building trust into the UI.** Financial actions need to feel safe, so we made the agent's reasoning visible and kept the buyer in control of the final payment click.
+
+## Accomplishments that we're proud of
+
+- A working end-to-end flow from chat to sandbox order creation to capture to ledger entry.
+- A polished, transparent agent UI that shows its reasoning instead of acting as a black box.
+- A practical use case for freelancers, agencies, and online merchants.
+
+## What we learned
+
+- How PayPal REST API v2 purchase units, captures, and invoices map onto an agentic workflow.
+- How to design agent interfaces that give users confidence and control when money is involved.
+
+## What's next for PayAgent
+
+- **Conditional escrow release** triggered by deliverable events such as GitHub PR merges and webhooks.
+- **PayPal Subscriptions** for recurring agent-managed retainers.
+- **Multi-currency support** with real-time conversion for cross-border contracts.
 
 ---
 

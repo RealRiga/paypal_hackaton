@@ -11,8 +11,21 @@ interface PayPalButtonWrapperProps {
   currency?: string;
   description?: string;
   items?: QuoteItem[];
+  settlementType?: "deposit" | "full";
   onSuccess?: (details: TransactionRecord) => void;
   onError?: (error: unknown) => void;
+}
+
+async function computeSha256Hex(input: string): Promise<string> {
+  if (typeof window !== "undefined" && window.crypto?.subtle) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(input);
+    const digest = await window.crypto.subtle.digest("SHA-256", data);
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+  }
+  return `sha256-${Date.now().toString(16)}`;
 }
 
 export default function PayPalButtonWrapper({
@@ -20,6 +33,7 @@ export default function PayPalButtonWrapper({
   currency = "USD",
   description = "PayAgent Commercial Settlement",
   items,
+  settlementType = "full",
   onSuccess,
   onError,
 }: PayPalButtonWrapperProps) {
@@ -45,6 +59,31 @@ export default function PayPalButtonWrapper({
     setLoading(true);
     setErrorMessage(null);
     try {
+      const itemsSum =
+        items?.reduce((acc, it) => acc + Number(it.price) * Number(it.quantity || 1), 0) ?? 0;
+      const matchesTotal = Math.abs(itemsSum - amount) < 0.02;
+
+      const normalizedItems =
+        items && items.length > 0 && matchesTotal
+          ? items.map((it) => ({
+              name: it.name,
+              quantity: String(it.quantity || "1"),
+              unit_amount: {
+                currency_code: currency,
+                value: Number(it.price).toFixed(2),
+              },
+            }))
+          : [
+              {
+                name: description,
+                quantity: "1",
+                unit_amount: {
+                  currency_code: currency,
+                  value: Number(amount).toFixed(2),
+                },
+              },
+            ];
+
       const res = await fetch("/api/paypal/create-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -52,14 +91,7 @@ export default function PayPalButtonWrapper({
           amount,
           currency,
           description,
-          items: items?.map((it) => ({
-            name: it.name,
-            quantity: it.quantity || "1",
-            unit_amount: {
-              currency_code: currency,
-              value: Number(it.price).toFixed(2),
-            },
-          })),
+          items: normalizedItems,
         }),
       });
 
@@ -92,10 +124,28 @@ export default function PayPalButtonWrapper({
         throw new Error(captureResult.error || "Capture execution failed");
       }
 
+      const timestamp = new Intl.DateTimeFormat("en-US", {
+        dateStyle: "medium",
+        timeStyle: "medium",
+      }).format(new Date());
+
+      const hash = await computeSha256Hex(
+        `${captureResult.captureId || captureResult.orderId}|${amount}|${currency}|${timestamp}`
+      );
+
+      const enrichedResult: TransactionRecord = {
+        ...captureResult,
+        amount: Number(captureResult.amount || amount),
+        currency: captureResult.currency || currency,
+        timestamp,
+        settlementType,
+        sha256Hash: hash,
+      };
+
       setLoading(false);
-      setSuccessData(captureResult);
+      setSuccessData(enrichedResult);
       fireCelebration();
-      onSuccess?.(captureResult);
+      onSuccess?.(enrichedResult);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Payment capture failed";
       console.error("PayPal capture failed:", err);
@@ -121,7 +171,10 @@ export default function PayPalButtonWrapper({
           <CheckCircle2 className="w-8 h-8 text-emerald-600 dark:text-emerald-400 mx-auto mb-2" />
           <h4 className="text-sm font-bold text-slate-900 dark:text-white mb-1">Payment Successfully Captured!</h4>
           <p className="text-xs text-slate-600 dark:text-[#94A3B8] mb-2">
-            Capture ID: <span className="font-mono text-emerald-700 dark:text-emerald-300 font-semibold">{successData.captureId || successData.orderId}</span>
+            Capture ID:{" "}
+            <span className="font-mono text-emerald-700 dark:text-emerald-300 font-semibold">
+              {successData.captureId || successData.orderId}
+            </span>
           </p>
           <div className="text-[11px] text-slate-700 dark:text-slate-400 bg-white dark:bg-[#07090E] p-2 rounded-lg border border-slate-200 dark:border-[#1E293B] transition-colors">
             Payer: {successData.payerName || "Sandbox Customer"} ({successData.payerEmail || "Verified"})
@@ -145,6 +198,7 @@ export default function PayPalButtonWrapper({
             }}
           >
             <PayPalButtons
+              forceReRender={[amount, currency, description, settlementType]}
               style={{
                 layout: "vertical",
                 color: "gold",

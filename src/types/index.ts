@@ -10,12 +10,17 @@ export interface Milestone {
   percentage: number;
   amount: number;
   status: "pending" | "released" | "disputed";
+  proofUrl?: string;
+  verifiedAt?: string;
 }
 
 export interface CommercialQuote {
   title: string;
   description: string;
   totalAmount: number;
+  basePrice?: number;
+  discountRate?: number;
+  depositRate?: number;
   currency: string;
   items: QuoteItem[];
   milestones: Milestone[];
@@ -32,6 +37,8 @@ export interface TransactionRecord {
   payerEmail?: string;
   timestamp?: string;
   transactionId?: string;
+  settlementType?: "deposit" | "full";
+  sha256Hash?: string;
 }
 
 export interface AgentAction {

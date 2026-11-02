@@ -8,29 +8,32 @@ import { CommercialQuote, TransactionRecord, Milestone } from "@/types";
 
 export default function Home() {
   const [currentQuote, setCurrentQuote] = useState<CommercialQuote>({
-    title: "Autonomous AI Commerce & Infrastructure Sprint",
+    title: "Enterprise AI Audit & Security Architecture",
     description: "Itemized scope and commercial deliverables synthesized by PayAgent.",
-    totalAmount: 1400,
+    basePrice: 950,
+    discountRate: 0.15,
+    depositRate: 0.4,
+    totalAmount: 807.5,
     currency: "USD",
     items: [
       {
-        name: "Discovery, Specification & Schema Design",
+        name: "Discovery, Threat Model & Agentic Architecture",
         quantity: "1",
-        price: 560,
-        description: "Technical scope definition, schema design, and API mapping.",
+        price: 484.5,
+        description: "Technical scope definition, schema design, and security audit.",
       },
       {
-        name: "Implementation, PayPal SDK Integration & Testing",
+        name: "Implementation, PayPal SDK Integration & Verification",
         quantity: "1",
-        price: 840,
+        price: 323.0,
         description: "Full implementation with unit tests, CI validation, and staging deployment.",
       },
     ],
     milestones: [
-      { name: "Phase 1: Architecture Sign-off", percentage: 50, amount: 700, status: "pending" },
-      { name: "Phase 2: Final Delivery & PayPal Handover", percentage: 50, amount: 700, status: "pending" },
+      { name: "Milestone 1: Upfront Escrow Deposit", percentage: 40, amount: 323.0, status: "pending" },
+      { name: "Milestone 2: Final Delivery & PayPal Handover", percentage: 60, amount: 484.5, status: "pending" },
     ],
-    terms: "Payments processed via PayPal Sandbox with dispute mediation by PayAgent.",
+    terms: "Payments processed via PayPal Sandbox with conditional milestone mediation by PayAgent.",
   });
 
   const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
@@ -43,7 +46,13 @@ export default function Home() {
       setCurrentQuote((prev: CommercialQuote) => ({
         ...prev,
         milestones: prev.milestones.map((ms: Milestone, idx: number) =>
-          idx === 0 ? { ...ms, status: "released" as const } : ms
+          tx.settlementType === "full" || idx === 0
+            ? {
+                ...ms,
+                status: "released" as const,
+                verifiedAt: tx.timestamp || "Just now",
+              }
+            : ms
         ),
       }));
     }
@@ -68,6 +77,7 @@ export default function Home() {
           <CommerceCanvas
             quote={currentQuote}
             transactions={transactions}
+            onUpdateQuote={setCurrentQuote}
             onPaymentComplete={handlePaymentComplete}
           />
         </section>

@@ -9,6 +9,8 @@ import {
   ChevronUp,
   CreditCard,
   Sparkles,
+  Mic,
+  MicOff,
 } from "lucide-react";
 import PayPalButtonWrapper from "./PayPalButtonWrapper";
 import { CommercialQuote, TransactionRecord, ChatMessage } from "@/types";
@@ -19,7 +21,29 @@ interface ChatPanelProps {
   onPaymentComplete: (transaction: TransactionRecord) => void;
 }
 
+interface SpeechRecognitionEventLike {
+  results: {
+    [index: number]: {
+      [index: number]: {
+        transcript: string;
+      };
+    };
+  };
+}
+
+interface SpeechRecognitionLike {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+}
+
 const PRESET_PROMPTS = [
+  "🛡️ I need an enterprise AI audit with a 15% discount and a 40% milestone deposit ($950)",
   "💼 Build an AI Mobile App with 40% upfront deposit ($2,400)",
   "🎨 Brand Identity Design with a 15% discount for immediate PayPal checkout ($750)",
   "⚡ Settle instant payment for Cloud Maintenance retainer ($350)",
@@ -44,11 +68,11 @@ export default function ChatPanel({
     {
       id: "msg-1",
       sender: "agent",
-      text: "Hello! I am **PayAgent**, your autonomous commercial negotiation and settlement partner.\n\nTell me what services, deliverables, or items you wish to buy or sell, or propose your budget terms. I will autonomously draft contracts, negotiate milestones, and orchestrate real-time **PayPal** checkout.",
+      text: "Hello! I am **PayAgent**, your autonomous commercial negotiation and settlement partner.\n\nTell me what services, deliverables, or items you wish to buy or sell, or propose your budget terms (or click the **mic** to speak). I will autonomously structure contracts, calculate discounts & milestone deposits, and orchestrate real-time **PayPal** checkout.",
       thoughtProcess: [
         "Initialized PayAgent Commerce core.",
-        "Verified PayPal REST sandbox connection.",
-        "Awaiting user commercial intent or scope specifications.",
+        "Verified PayPal REST v2 sandbox connection.",
+        "Loaded transparent pricing formula: Total = P(1 - d), Deposit = r · P(1 - d).",
       ],
       timestamp: "Just now",
     },
@@ -56,8 +80,11 @@ export default function ChatPanel({
 
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [inlineSettlementMode, setInlineSettlementMode] = useState<"deposit" | "full">("deposit");
   const [expandedThoughts, setExpandedThoughts] = useState<Record<string, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -69,6 +96,48 @@ export default function ChatPanel({
 
   const toggleThoughts = (id: string) => {
     setExpandedThoughts((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const toggleVoiceInput = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+
+    const win = window as unknown as {
+      SpeechRecognition?: new () => SpeechRecognitionLike;
+      webkitSpeechRecognition?: new () => SpeechRecognitionLike;
+    };
+    const SpeechRec = win.SpeechRecognition || win.webkitSpeechRecognition;
+    if (!SpeechRec) {
+      alert("Voice input is supported in Chrome, Edge, and Safari.");
+      return;
+    }
+
+    const recognition = new SpeechRec();
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+    recognition.continuous = false;
+
+    recognition.onresult = (event: SpeechRecognitionEventLike) => {
+      const transcript = event.results?.[0]?.[0]?.transcript;
+      if (transcript) {
+        setInput((prev) => (prev ? `${prev} ${transcript}` : transcript));
+      }
+    };
+
+    recognition.onerror = () => {
+      setIsListening(false);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognitionRef.current = recognition;
+    setIsListening(true);
+    recognition.start();
   };
 
   const handleSend = async (messageText?: string) => {
@@ -148,6 +217,14 @@ export default function ChatPanel({
       <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 bg-slate-50/40 dark:bg-transparent">
         {messages.map((msg) => {
           const isUser = msg.sender === "user";
+          const actionQuote = msg.action?.quote || currentQuote;
+          const depositAmount =
+            actionQuote?.milestones?.[0]?.amount ||
+            Number(((actionQuote?.totalAmount || 450) * 0.4).toFixed(2));
+          const fullAmount = actionQuote?.totalAmount || 450;
+          const activeInlineAmount =
+            inlineSettlementMode === "deposit" ? depositAmount : fullAmount;
+
           return (
             <div
               key={msg.id}
@@ -231,17 +308,47 @@ export default function ChatPanel({
                           <span>PayPal Instant Checkout</span>
                         </span>
                         <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 font-mono">
-                          ${(msg.action.quote?.totalAmount || 450).toFixed(2)} USD
+                          ${activeInlineAmount.toFixed(2)} USD
                         </span>
                       </div>
+
+                      {/* Deposit vs Full Toggle */}
+                      <div className="grid grid-cols-2 gap-1.5 p-1 rounded-lg bg-slate-100 dark:bg-[#07090E] border border-slate-200 dark:border-[#1E293B] text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() => setInlineSettlementMode("deposit")}
+                          className={`py-1.5 px-2 rounded-md font-medium transition-all cursor-pointer ${
+                            inlineSettlementMode === "deposit"
+                              ? "bg-[#0070BA] text-white shadow-xs"
+                              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                          }`}
+                        >
+                          Deposit (${depositAmount.toFixed(2)})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setInlineSettlementMode("full")}
+                          className={`py-1.5 px-2 rounded-md font-medium transition-all cursor-pointer ${
+                            inlineSettlementMode === "full"
+                              ? "bg-[#0070BA] text-white shadow-xs"
+                              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                          }`}
+                        >
+                          Full (${fullAmount.toFixed(2)})
+                        </button>
+                      </div>
+
                       <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                        {msg.action.quote?.title || "Negotiated Agreement Settlement"}
+                        {actionQuote?.title || "Negotiated Agreement Settlement"}
                       </p>
                       <PayPalButtonWrapper
-                        amount={msg.action.quote?.totalAmount || 450}
+                        amount={activeInlineAmount}
                         currency="USD"
-                        description={msg.action.quote?.title}
-                        items={msg.action.quote?.items}
+                        settlementType={inlineSettlementMode}
+                        description={`${actionQuote?.title || "Agreement"} (${
+                          inlineSettlementMode === "deposit" ? "Upfront Milestone Deposit" : "Full Contract"
+                        })`}
+                        items={inlineSettlementMode === "full" ? actionQuote?.items : undefined}
                         onSuccess={(tx) => onPaymentComplete(tx)}
                       />
                     </div>
@@ -278,7 +385,7 @@ export default function ChatPanel({
         ))}
       </div>
 
-      {/* Input Form */}
+      {/* Input Form with Voice-to-Deal Mic */}
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -286,11 +393,29 @@ export default function ChatPanel({
         }}
         className="p-3 sm:p-4 border-t border-slate-200 dark:border-[#1E293B] bg-white dark:bg-[#0B101D] flex items-center space-x-2 transition-colors"
       >
+        <button
+          type="button"
+          onClick={toggleVoiceInput}
+          title={isListening ? "Stop voice dictation" : "Speak deal terms (Voice-to-Deal)"}
+          aria-label="Voice dictation"
+          className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center shrink-0 ${
+            isListening
+              ? "bg-red-500/10 border-red-500 text-red-500 animate-pulse"
+              : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600 dark:bg-[#111A2E] dark:hover:bg-[#1A2640] dark:border-[#1E293B] dark:text-slate-300"
+          }`}
+        >
+          {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+        </button>
+
         <input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="e.g. Negotiate a $900 website redesign with 30% deposit..."
+          placeholder={
+            isListening
+              ? "Listening... speak your commercial deal..."
+              : "e.g. Enterprise AI audit with 15% discount & 40% deposit ($950)..."
+          }
           disabled={loading}
           className="flex-1 bg-slate-50 border border-slate-200 focus:border-[#0070BA] focus:bg-white focus:outline-none rounded-xl px-4 py-2.5 text-xs sm:text-sm text-slate-900 placeholder-slate-400 dark:bg-[#111A2E] dark:border-[#1E293B] dark:focus:border-[#0070BA] dark:focus:bg-[#111A2E] dark:text-white dark:placeholder-slate-500 transition-colors"
         />

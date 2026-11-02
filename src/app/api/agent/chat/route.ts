@@ -83,7 +83,10 @@ Respond ONLY with a valid JSON object matching this exact schema:
   "quote": {
     "title": "Project or Service Title",
     "description": "Brief scope summary",
-    "totalAmount": 1200,
+    "basePrice": 950,
+    "discountRate": 0.15,
+    "depositRate": 0.40,
+    "totalAmount": 807.50,
     "currency": "USD",
     "items": [
       { "name": "Deliverable 1", "quantity": "1", "price": 700, "description": "Details" },
@@ -98,10 +101,13 @@ Respond ONLY with a valid JSON object matching this exact schema:
 }
 
 Rules:
-1. Ensure sum of items[].price equals totalAmount, and sum of milestones[].amount equals totalAmount.
-2. If the user asks to pay, checkout, settle, or buy now, set "actionType" to "CHECKOUT_READY".
-3. If the user proposes a project, asks for a quote, or negotiates price/discount/terms, set "actionType" to "QUOTE_GENERATED".
-4. If the user asks to release or approve a milestone, set "actionType" to "MILESTONE_RELEASED" and mark the first pending milestone status as "released".`;
+1. Pricing math: For base price P, discount rate d (e.g. 0.15 for 15% discount), and deposit rate r (e.g. 0.40 for 40% deposit):
+   Total = P * (1 - d), Deposit = r * Total, Remaining = Total - Deposit.
+   For example, P = 950, d = 0.15, r = 0.40 gives Total = 807.50, Milestone 1 Deposit = 323.00, Milestone 2 Remaining = 484.50.
+2. Ensure sum of items[].price equals totalAmount, and sum of milestones[].amount equals totalAmount.
+3. If the user asks to pay, checkout, settle, or buy now, set "actionType" to "CHECKOUT_READY".
+4. If the user proposes a project, asks for a quote, or negotiates price/discount/terms, set "actionType" to "QUOTE_GENERATED".
+5. If the user asks to release or approve a milestone, set "actionType" to "MILESTONE_RELEASED" and mark the first pending milestone status as "released".`;
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -306,33 +312,54 @@ async function runAutonomousCommerceEngine(
     lower.includes("budget is")
   ) {
     thoughts.push("Detected price negotiation & budget constraint.");
-    const requestedAmount = extractDollarAmount(message);
-    const baseAmount = existingQuote?.totalAmount || 1200;
-    const discountedAmount = requestedAmount || Math.round(baseAmount * 0.85);
+    const baseAmount = extractDollarAmount(message) || existingQuote?.totalAmount || 950;
+    const discountPct = extractPercentageBefore(message, "discount") ?? 15;
+    const depositPct = extractPercentageBefore(message, "deposit|upfront|milestone") ?? 40;
 
-    thoughts.push(`Calculated optimal win-win counter-offer: $${discountedAmount}.`);
-    thoughts.push("Updated milestone schedule: 40% upfront retainer, 60% upon final sign-off.");
+    const d = discountPct / 100;
+    const r = depositPct / 100;
+    const discountedAmount = Number((baseAmount * (1 - d)).toFixed(2));
+    const depositAmount = Number((discountedAmount * r).toFixed(2));
+    const remainingAmount = Number((discountedAmount - depositAmount).toFixed(2));
+    const item1Price = Number((discountedAmount * 0.6).toFixed(2));
+    const item2Price = Number((discountedAmount - item1Price).toFixed(2));
+
+    thoughts.push(
+      `Applied pricing formula: Total = $${baseAmount} × (1 - ${d}) = $${discountedAmount.toFixed(2)}.`
+    );
+    thoughts.push(
+      `Structured milestone escrow: ${depositPct}% upfront deposit ($${depositAmount.toFixed(
+        2
+      )}) and ${100 - depositPct}% completion ($${remainingAmount.toFixed(2)}).`
+    );
 
     const newQuote: CommercialQuote = {
-      title: existingQuote?.title || "Comprehensive AI Application & Architecture",
-      description: "Custom project scope with negotiated 15% upfront volume adjustment.",
+      title: lower.includes("audit")
+        ? "Enterprise AI & Security Audit"
+        : lower.includes("design")
+        ? "Brand Identity & Design System"
+        : existingQuote?.title || "Comprehensive AI Application & Architecture",
+      description: `Custom scope with negotiated ${discountPct}% discount and ${depositPct}% milestone deposit.`,
+      basePrice: baseAmount,
+      discountRate: d,
+      depositRate: r,
       totalAmount: discountedAmount,
       currency: "USD",
       items: [
-        { name: "Core Architecture & API Integrations", quantity: "1", price: Math.round(discountedAmount * 0.6) },
-        { name: "Frontend User Experience & QA", quantity: "1", price: Math.round(discountedAmount * 0.4) },
+        { name: "Core Architecture, Audit & API Integrations", quantity: "1", price: item1Price },
+        { name: "Deliverable Verification, Report & QA", quantity: "1", price: item2Price },
       ],
       milestones: [
         {
           name: "Initial Deposit & Sprint 1 Kickoff",
-          percentage: 40,
-          amount: Math.round(discountedAmount * 0.4),
+          percentage: depositPct,
+          amount: depositAmount,
           status: "pending",
         },
         {
           name: "Final Acceptance & Deployment",
-          percentage: 60,
-          amount: Math.round(discountedAmount * 0.6),
+          percentage: 100 - depositPct,
+          amount: remainingAmount,
           status: "pending",
         },
       ],
@@ -340,11 +367,13 @@ async function runAutonomousCommerceEngine(
     };
 
     return {
-      reply: `I've analyzed your budget requirements and structured a revised proposal at **$${discountedAmount.toFixed(
+      reply: `I've structured your agreement with a **${discountPct}% discount** on the $${baseAmount.toFixed(
         2
-      )} USD** (saving you $${Math.abs(baseAmount - discountedAmount).toFixed(
+      )} base price, bringing the total to **$${discountedAmount.toFixed(2)} USD** (saving you $${(
+        baseAmount - discountedAmount
+      ).toFixed(2)}).\n\nThe **${depositPct}% upfront milestone deposit is $${depositAmount.toFixed(
         2
-      )}).\n\nI have structured this with a **40% milestone upfront ($${newQuote.milestones[0].amount})** to protect both parties. Does this work for you?`,
+      )}**, leaving **$${remainingAmount.toFixed(2)}** across remaining milestones. Ready to proceed?`,
       thoughtProcess: thoughts,
       action: {
         type: "QUOTE_GENERATED",
@@ -463,6 +492,16 @@ function extractDollarAmount(text: string): number | null {
     const raw = (match[1] || match[2]).replace(/,/g, "");
     const val = parseFloat(raw);
     if (!isNaN(val) && val > 0 && val < 100000) return val;
+  }
+  return null;
+}
+
+function extractPercentageBefore(text: string, keywordPattern: string): number | null {
+  const regex = new RegExp(`(\\d{1,2}(?:\\.\\d+)?)%\\s*(?:\\w+\\s+)?(?:${keywordPattern})`, "i");
+  const match = text.match(regex);
+  if (match) {
+    const val = parseFloat(match[1]);
+    if (!isNaN(val) && val > 0 && val < 100) return val;
   }
   return null;
 }
