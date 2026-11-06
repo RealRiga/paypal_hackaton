@@ -83,22 +83,12 @@ export async function createPayPalOrder(params: {
 
   const purchaseUnit: Record<string, unknown> = {
     reference_id: params.referenceId || `PAYAGENT-${Date.now()}`,
-    description: params.description || "PayAgent Autonomous Commercial Settlement",
+    description: (params.description || "PayAgent Commercial Settlement").slice(0, 120),
     amount: {
       currency_code: currency,
       value: amountStr,
     },
   };
-
-  if (params.items && params.items.length > 0) {
-    purchaseUnit.items = params.items;
-    (purchaseUnit.amount as Record<string, unknown>).breakdown = {
-      item_total: {
-        currency_code: currency,
-        value: amountStr,
-      },
-    };
-  }
 
   const response = await fetch(`${PAYPAL_API_BASE}/v2/checkout/orders`, {
     method: "POST",
@@ -110,13 +100,6 @@ export async function createPayPalOrder(params: {
     body: JSON.stringify({
       intent: "CAPTURE",
       purchase_units: [purchaseUnit],
-      application_context: {
-        brand_name: "PayAgent Commerce",
-        landing_page: "NO_PREFERENCE",
-        user_action: "PAY_NOW",
-        return_url: "https://localhost:3000/checkout/success",
-        cancel_url: "https://localhost:3000/checkout/cancel",
-      },
     }),
   });
 

@@ -9,8 +9,6 @@ import {
   ChevronUp,
   CreditCard,
   Sparkles,
-  Mic,
-  MicOff,
 } from "lucide-react";
 import PayPalButtonWrapper from "./PayPalButtonWrapper";
 import { CommercialQuote, TransactionRecord, ChatMessage } from "@/types";
@@ -21,32 +19,11 @@ interface ChatPanelProps {
   onPaymentComplete: (transaction: TransactionRecord) => void;
 }
 
-interface SpeechRecognitionEventLike {
-  results: {
-    [index: number]: {
-      [index: number]: {
-        transcript: string;
-      };
-    };
-  };
-}
-
-interface SpeechRecognitionLike {
-  lang: string;
-  interimResults: boolean;
-  continuous: boolean;
-  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-  onerror: (() => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-}
-
 const PRESET_PROMPTS = [
   "🛡️ I need an enterprise AI audit with a 15% discount and a 40% milestone deposit ($950)",
-  "💼 Build an AI Mobile App with 40% upfront deposit ($2,400)",
-  "🎨 Brand Identity Design with a 15% discount for immediate PayPal checkout ($750)",
-  "⚡ Settle instant payment for Cloud Maintenance retainer ($350)",
+  "📊 I need Power BI dashboard: base price $1,450, 10% off, 30% deposit, split the rest into 2 milestones",
+  "✍️ I need copywriting package: $2,000 budget, 10% off... actually make it 20% off, 25% deposit ready to pay today",
+  "⚠️ I need website redesign: budget is $1,000, take 120% off, 40% deposit",
 ];
 
 let messageCounter = 0;
@@ -68,7 +45,7 @@ export default function ChatPanel({
     {
       id: "msg-1",
       sender: "agent",
-      text: "Hello! I am **PayAgent**, your autonomous commercial negotiation and settlement partner.\n\nTell me what services, deliverables, or items you wish to buy or sell, or propose your budget terms (or click the **mic** to speak). I will autonomously structure contracts, calculate discounts & milestone deposits, and orchestrate real-time **PayPal** checkout.",
+      text: "Hello! I am **PayAgent**, your autonomous commercial negotiation and settlement partner.\n\nTell me what services, deliverables, or items you wish to buy or sell, or propose your budget terms. I will autonomously structure contracts, calculate discounts & milestone deposits, and orchestrate real-time **PayPal** checkout.",
       thoughtProcess: [
         "Initialized PayAgent Commerce core.",
         "Verified PayPal REST v2 sandbox connection.",
@@ -80,11 +57,9 @@ export default function ChatPanel({
 
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [isListening, setIsListening] = useState(false);
   const [inlineSettlementMode, setInlineSettlementMode] = useState<"deposit" | "full">("deposit");
   const [expandedThoughts, setExpandedThoughts] = useState<Record<string, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -96,48 +71,6 @@ export default function ChatPanel({
 
   const toggleThoughts = (id: string) => {
     setExpandedThoughts((prev) => ({ ...prev, [id]: !prev[id] }));
-  };
-
-  const toggleVoiceInput = () => {
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
-      return;
-    }
-
-    const win = window as unknown as {
-      SpeechRecognition?: new () => SpeechRecognitionLike;
-      webkitSpeechRecognition?: new () => SpeechRecognitionLike;
-    };
-    const SpeechRec = win.SpeechRecognition || win.webkitSpeechRecognition;
-    if (!SpeechRec) {
-      alert("Voice input is supported in Chrome, Edge, and Safari.");
-      return;
-    }
-
-    const recognition = new SpeechRec();
-    recognition.lang = "en-US";
-    recognition.interimResults = false;
-    recognition.continuous = false;
-
-    recognition.onresult = (event: SpeechRecognitionEventLike) => {
-      const transcript = event.results?.[0]?.[0]?.transcript;
-      if (transcript) {
-        setInput((prev) => (prev ? `${prev} ${transcript}` : transcript));
-      }
-    };
-
-    recognition.onerror = () => {
-      setIsListening(false);
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-    };
-
-    recognitionRef.current = recognition;
-    setIsListening(true);
-    recognition.start();
   };
 
   const handleSend = async (messageText?: string) => {
@@ -385,7 +318,7 @@ export default function ChatPanel({
         ))}
       </div>
 
-      {/* Input Form with Voice-to-Deal Mic */}
+      {/* Input Form */}
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -393,29 +326,11 @@ export default function ChatPanel({
         }}
         className="p-3 sm:p-4 border-t border-slate-200 dark:border-[#1E293B] bg-white dark:bg-[#0B101D] flex items-center space-x-2 transition-colors"
       >
-        <button
-          type="button"
-          onClick={toggleVoiceInput}
-          title={isListening ? "Stop voice dictation" : "Speak deal terms (Voice-to-Deal)"}
-          aria-label="Voice dictation"
-          className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center shrink-0 ${
-            isListening
-              ? "bg-red-500/10 border-red-500 text-red-500 animate-pulse"
-              : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600 dark:bg-[#111A2E] dark:hover:bg-[#1A2640] dark:border-[#1E293B] dark:text-slate-300"
-          }`}
-        >
-          {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-        </button>
-
         <input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={
-            isListening
-              ? "Listening... speak your commercial deal..."
-              : "e.g. Enterprise AI audit with 15% discount & 40% deposit ($950)..."
-          }
+          placeholder="e.g. Enterprise AI audit with 15% discount & 40% deposit ($950)..."
           disabled={loading}
           className="flex-1 bg-slate-50 border border-slate-200 focus:border-[#0070BA] focus:bg-white focus:outline-none rounded-xl px-4 py-2.5 text-xs sm:text-sm text-slate-900 placeholder-slate-400 dark:bg-[#111A2E] dark:border-[#1E293B] dark:focus:border-[#0070BA] dark:focus:bg-[#111A2E] dark:text-white dark:placeholder-slate-500 transition-colors"
         />
